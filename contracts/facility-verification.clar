@@ -1,30 +1,66 @@
+;; Facility Verification Contract
+;; Validates production sites and their capabilities
 
-;; title: facility-verification
-;; version:
-;; summary:
-;; description:
+(define-data-var admin principal tx-sender)
 
-;; traits
-;;
+;; Data structure for facilities
+(define-map facilities
+  { facility-id: (string-ascii 32) }
+  {
+    name: (string-ascii 100),
+    location: (string-ascii 100),
+    verified: bool,
+    verification-date: uint,
+    capabilities: (list 10 (string-ascii 50))
+  }
+)
 
-;; token definitions
-;;
+;; Register a new facility
+(define-public (register-facility (facility-id (string-ascii 32)) (name (string-ascii 100)) (location (string-ascii 100)) (capabilities (list 10 (string-ascii 50))))
+  (begin
+    (asserts! (is-eq tx-sender (var-get admin)) (err u403))
+    (asserts! (is-none (map-get? facilities { facility-id: facility-id })) (err u100))
+    (ok (map-set facilities
+      { facility-id: facility-id }
+      {
+        name: name,
+        location: location,
+        verified: false,
+        verification-date: u0,
+        capabilities: capabilities
+      }
+    ))
+  )
+)
 
-;; constants
-;;
+;; Verify a facility
+(define-public (verify-facility (facility-id (string-ascii 32)))
+  (let ((facility (unwrap! (map-get? facilities { facility-id: facility-id }) (err u404))))
+    (asserts! (is-eq tx-sender (var-get admin)) (err u403))
+    (ok (map-set facilities
+      { facility-id: facility-id }
+      (merge facility {
+        verified: true,
+        verification-date: block-height
+      })
+    ))
+  )
+)
 
-;; data vars
-;;
+;; Get facility details
+(define-read-only (get-facility (facility-id (string-ascii 32)))
+  (map-get? facilities { facility-id: facility-id })
+)
 
-;; data maps
-;;
+;; Check if facility is verified
+(define-read-only (is-facility-verified (facility-id (string-ascii 32)))
+  (default-to false (get verified (map-get? facilities { facility-id: facility-id })))
+)
 
-;; public functions
-;;
-
-;; read only functions
-;;
-
-;; private functions
-;;
-
+;; Transfer admin rights
+(define-public (transfer-admin (new-admin principal))
+  (begin
+    (asserts! (is-eq tx-sender (var-get admin)) (err u403))
+    (ok (var-set admin new-admin))
+  )
+)
